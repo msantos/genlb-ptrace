@@ -80,6 +80,7 @@ typedef struct {
 static int genlb_tracee(genlb_state_t *s, char *argv[]);
 static int genlb_tracer(genlb_state_t *s, pid_t tracee);
 static int genlb_connect(genlb_state_t *s, pid_t tracee);
+static int signum(int status);
 
 static int event_loop(genlb_state_t *s);
 static int read_sockaddr(genlb_state_t *s, pid_t tracee, struct sockaddr *saddr,
@@ -320,26 +321,30 @@ static int event_loop(genlb_state_t *s) {
       break;
 
     default:
-      if (WIFSTOPPED(status)) {
-        switch (WSTOPSIG(status)) {
-        case SIGSTOP:
-        case SIGTRAP:
-        case SIGCHLD:
-        case SIGSYS:
-          break;
-        default:
-          sig = WSTOPSIG(status);
-          VERBOSE(s, 2, "SIGNAL:pid=%d signal=%d\n", tracee, sig);
-          break;
-        }
-      }
-
+      sig = signum(status);
+      if (sig > 0)
+        VERBOSE(s, 2, "SIGNAL:pid=%d signal=%d\n", tracee, sig);
       break;
     }
 
   GENLB_CONT:
     if (ptrace(PTRACE_CONT, tracee, 0, sig) < 0)
       return 111;
+  }
+}
+
+static int signum(int status) {
+  if (!WIFSTOPPED(status))
+    return 0;
+
+  switch (WSTOPSIG(status)) {
+  case SIGSTOP:
+  case SIGTRAP:
+  case SIGCHLD:
+  case SIGSYS:
+    return 0;
+  default:
+    return WSTOPSIG(status);
   }
 }
 
