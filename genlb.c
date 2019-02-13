@@ -178,22 +178,22 @@ static int genlb_tracee(genlb_state_t *s, char *argv[]) {
   (void)unsetenv("LD_PRELOAD");
 
   if (ptrace(PTRACE_TRACEME, 0, 0, 0) < 0) {
-    VERBOSE(s, 1, "ptrace(PTRACEME)\n");
+    VERBOSE(s, 1, "ptrace(PTRACEME): %s\n", strerror(errno));
     return -1;
   }
 
   if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) < 0) {
-    VERBOSE(s, 1, "prctl(PR_SET_NO_NEW_PRIVS)\n");
+    VERBOSE(s, 1, "prctl(PR_SET_NO_NEW_PRIVS): %s\n", strerror(errno));
     return -1;
   }
 
   if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog) < 0) {
-    VERBOSE(s, 1, "prctl(PR_SET_SECCOMP\n");
+    VERBOSE(s, 1, "prctl(PR_SET_SECCOMP: %s\n", strerror(errno));
     return -1;
   }
 
   if (raise(SIGSTOP) < 0) {
-    VERBOSE(s, 1, "raise(SIGSTOP)\n");
+    VERBOSE(s, 1, "raise(SIGSTOP): %s\n", strerror(errno));
     return -1;
   }
 
@@ -204,7 +204,7 @@ static int genlb_tracer(genlb_state_t *s, pid_t tracee) {
   int status;
 
   if (waitpid(tracee, &status, 0) < 0) {
-    VERBOSE(s, 1, "waitpid\n");
+    VERBOSE(s, 1, "waitpid: %s\n", strerror(errno));
     return -1;
   }
 
@@ -540,7 +540,7 @@ static int read_sockaddr(genlb_state_t *s, pid_t tracee, struct sockaddr *saddr,
   addrlen = (socklen_t)ptrace(PTRACE_PEEKUSER, tracee, sizeof(long) * RDX, 0);
 
   if (addrlen > *saddrlen) {
-    VERBOSE(s, 0, "addrlen=%lu, saddr=%lu\n", (long unsigned int)addrlen,
+    VERBOSE(s, 0, "addrlen=%lu, saddrlen=%lu\n", (long unsigned int)addrlen,
             (long unsigned int)*saddrlen);
     errno = EINVAL;
     return -1;
