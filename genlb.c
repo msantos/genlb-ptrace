@@ -108,10 +108,10 @@ int main(int argc, char *argv[]) {
 
   s = calloc(1, sizeof(genlb_state_t));
 
-  s->connect_failure = GENLB_CONNECT_FAILURE_CONTINUE;
-
   if (s == NULL)
     err(EXIT_FAILURE, "unable to allocate memory");
+
+  s->connect_failure = GENLB_CONNECT_FAILURE_CONTINUE;
 
   while ((ch = getopt_long(argc, argv, "+c:hv", long_options, NULL)) != -1) {
     switch (ch) {
@@ -188,7 +188,7 @@ static int genlb_tracee(genlb_state_t *s, char *argv[]) {
   }
 
   if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog) < 0) {
-    VERBOSE(s, 1, "prctl(PR_SET_SECCOMP: %s\n", strerror(errno));
+    VERBOSE(s, 1, "prctl(PR_SET_SECCOMP): %s\n", strerror(errno));
     return -1;
   }
 
