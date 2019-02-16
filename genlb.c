@@ -80,6 +80,9 @@ typedef struct {
 static int genlb_tracee(genlb_state_t *s, char *argv[]);
 static int genlb_tracer(genlb_state_t *s, pid_t tracee);
 static int genlb_connect(genlb_state_t *s, pid_t tracee);
+static int genlb_socket(genlb_state_t *s, const struct sockaddr *addr,
+                        socklen_t *addrlen, struct sockaddr *paddr,
+                        socklen_t *paddrlen);
 static int signum(int status);
 
 static int event_loop(genlb_state_t *s);
@@ -349,14 +352,13 @@ static int signum(int status) {
 }
 
 static int genlb_connect(genlb_state_t *s, pid_t tracee) {
-  int sockfd;
-  int rv;
-
   struct sockaddr_storage addr = {0};
   socklen_t addrlen = sizeof(addr);
 
   struct sockaddr_in paddr = {0};
   socklen_t paddrlen;
+
+  int rv;
 
   rv = read_sockaddr(s, tracee, (struct sockaddr *)&addr, &addrlen);
 
@@ -386,40 +388,9 @@ static int genlb_connect(genlb_state_t *s, pid_t tracee) {
             inet_ntoa(((const struct sockaddr_in *)&addr)->sin_addr),
             ntohs(((const struct sockaddr_in *)&addr)->sin_port));
 
-    sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-
-    if (sockfd < 0) {
-      VERBOSE(s, 0, "socket: %s\n", strerror(errno));
+    if (genlb_socket(s, (const struct sockaddr *)&addr, &addrlen,
+                     (struct sockaddr *)&paddr, &paddrlen) < 0)
       return -1;
-    }
-
-    rv = connect(sockfd, (const struct sockaddr *)&addr, addrlen);
-
-    if (rv < 0) {
-      VERBOSE(s, 1, "connect: %s\n", strerror(errno));
-      return s->connect_failure == GENLB_CONNECT_FAILURE_EXIT ? -1 : 0;
-    }
-
-    paddrlen = addrlen;
-    rv = getpeername(sockfd, (struct sockaddr *)&paddr, &paddrlen);
-
-    if (rv < 0) {
-      VERBOSE(s, 0, "getpeername: %s\n", strerror(errno));
-      return -1;
-    }
-
-    if (paddrlen != addrlen) {
-      VERBOSE(s, 0, "getpeername:orig=%d bytes/new=%d bytes\n", addrlen,
-              paddrlen);
-      return -1;
-    }
-
-    rv = close(sockfd);
-
-    if (rv < 0) {
-      VERBOSE(s, 0, "close: %s\n", strerror(errno));
-      return -1;
-    }
 
     VERBOSE(s, 2, "connect:new:family=%d saddr=%s port=%d\n", paddr.sin_family,
             inet_ntoa(paddr.sin_addr), ntohs(paddr.sin_port));
@@ -458,39 +429,14 @@ static int genlb_connect(genlb_state_t *s, pid_t tracee) {
             &(((const struct sockaddr_in6 *)&addr)->sin6_addr)))
       return 0;
 
-    sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-
-    if (sockfd < 0) {
-      VERBOSE(s, 0, "socket: %s\n", strerror(errno));
-      return -1;
-    }
-
     sa.sin_family = AF_INET;
     sa.sin_port = ((const struct sockaddr_in6 *)&addr)->sin6_port;
     sa.sin_addr.s_addr =
         ((const struct sockaddr_in6 *)&addr)->sin6_addr.s6_addr32[3];
 
-    rv = connect(sockfd, (const struct sockaddr *)&sa, salen);
-
-    if (rv < 0) {
-      VERBOSE(s, 1, "connect: %s\n", strerror(errno));
-      return s->connect_failure == GENLB_CONNECT_FAILURE_EXIT ? -1 : 0;
-    }
-
-    paddrlen = salen;
-    rv = getpeername(sockfd, (struct sockaddr *)&paddr, &paddrlen);
-
-    if (rv < 0) {
-      VERBOSE(s, 0, "getpeername: %s\n", strerror(errno));
+    if (genlb_socket(s, (const struct sockaddr *)&sa, &salen,
+                     (struct sockaddr *)&paddr, &paddrlen) < 0)
       return -1;
-    }
-
-    rv = close(sockfd);
-
-    if (rv < 0) {
-      VERBOSE(s, 0, "close: %s\n", strerror(errno));
-      return -1;
-    }
 
     VERBOSE(s, 2, "connect6:proxy:family=%d saddr=%s port=%d\n",
             paddr.sin_family, inet_ntoa(paddr.sin_addr), ntohs(paddr.sin_port));
@@ -520,6 +466,50 @@ static int genlb_connect(genlb_state_t *s, pid_t tracee) {
   break;
   default:
     break;
+  }
+
+  return 0;
+}
+
+static int genlb_socket(genlb_state_t *s, const struct sockaddr *addr,
+                        socklen_t *addrlen, struct sockaddr *paddr,
+                        socklen_t *paddrlen) {
+  int sockfd;
+  int rv;
+
+  sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+
+  if (sockfd < 0) {
+    VERBOSE(s, 0, "socket: %s\n", strerror(errno));
+    return -1;
+  }
+
+  rv = connect(sockfd, addr, *addrlen);
+
+  if (rv < 0) {
+    VERBOSE(s, 1, "connect: %s\n", strerror(errno));
+    return s->connect_failure == GENLB_CONNECT_FAILURE_EXIT ? -1 : 0;
+  }
+
+  *paddrlen = *addrlen;
+  rv = getpeername(sockfd, paddr, paddrlen);
+
+  if (rv < 0) {
+    VERBOSE(s, 0, "getpeername: %s\n", strerror(errno));
+    return -1;
+  }
+
+  if (*paddrlen != *addrlen) {
+    VERBOSE(s, 0, "getpeername:orig=%d bytes/new=%d bytes\n", *addrlen,
+            *paddrlen);
+    return -1;
+  }
+
+  rv = close(sockfd);
+
+  if (rv < 0) {
+    VERBOSE(s, 0, "close: %s\n", strerror(errno));
+    return -1;
   }
 
   return 0;
