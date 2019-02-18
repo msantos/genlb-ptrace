@@ -93,8 +93,6 @@ static int write_sockaddr(genlb_state_t *s, pid_t tracee,
 
 static void usage(void);
 
-static int children = 1;
-
 enum { GENLB_CONNECT_FAILURE_EXIT = 0, GENLB_CONNECT_FAILURE_CONTINUE = 1 };
 
 static const struct option long_options[] = {
@@ -227,6 +225,8 @@ static int event_loop(genlb_state_t *s) {
   int status;
   pid_t tracee;
   pid_t npid;
+
+  int children = 1;
 
   for (;;) {
     int sig = 0;
