@@ -171,10 +171,8 @@ static int genlb_tracee(genlb_state_t *s, char *argv[]) {
       BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_ALLOW),
   };
 
-  struct sock_fprog prog = {
-      .filter = filter,
-      .len = (unsigned short)(sizeof(filter) / sizeof(filter[0])),
-  };
+  struct sock_fprog prog = {.filter = filter,
+                            .len = (unsigned short)IOVEC_COUNT(filter)};
 
   (void)unsetenv("LD_PRELOAD");
 
