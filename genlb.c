@@ -374,7 +374,7 @@ static int genlb_connect(genlb_state_t *s, pid_t tracee) {
 
   switch (((const struct sockaddr *)&addr)->sa_family) {
   case AF_INET:
-    if (addrlen < sizeof(struct sockaddr_in)) {
+    if (addrlen != sizeof(struct sockaddr_in)) {
       VERBOSE(s, 0, "read: sockaddr_in: addrlen=%lu/%lu\n",
               (long unsigned int)addrlen,
               (long unsigned int)sizeof(struct sockaddr_in));
@@ -409,7 +409,7 @@ static int genlb_connect(genlb_state_t *s, pid_t tracee) {
     socklen_t salen = sizeof(sa);
     char addrstr[INET6_ADDRSTRLEN] = {0};
 
-    if (addrlen < sizeof(struct sockaddr_in6)) {
+    if (addrlen != sizeof(struct sockaddr_in6)) {
       VERBOSE(s, 0, "read: sockaddr_in6: addrlen=%lu/%lu\n",
               (long unsigned int)addrlen,
               (long unsigned int)sizeof(struct sockaddr_in6));
