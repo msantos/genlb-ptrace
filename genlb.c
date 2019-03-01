@@ -153,9 +153,6 @@ int main(int argc, char *argv[]) {
     rv = genlb_tracer(s, pid);
   }
 
-  if (rv != 0 && errno != 0)
-    VERBOSE(s, 0, "tracer: %s\n", strerror(errno));
-
   exit(rv);
 }
 
@@ -247,15 +244,19 @@ static int event_loop(genlb_state_t *s) {
 
     switch (status >> 8) {
     case (SIGTRAP | (PTRACE_EVENT_SECCOMP << 8)):
-      if (genlb_connect(s, tracee) < 0)
-        return 112;
+      if (genlb_connect(s, tracee) < 0) {
+        VERBOSE(s, 0, "genlb_connect: %s\n", strerror(errno));
+        return -1;
+      }
 
       break;
 
     case (SIGTRAP | (PTRACE_EVENT_FORK << 8)):
     case (SIGTRAP | (PTRACE_EVENT_VFORK << 8)):
-      if (ptrace(PTRACE_GETEVENTMSG, tracee, 0, &npid) < 0)
-        return 111;
+      if (ptrace(PTRACE_GETEVENTMSG, tracee, 0, &npid) < 0) {
+        VERBOSE(s, 0, "ptrace(GETEVENTMSG): %s\n", strerror(errno));
+        return -1;
+      }
 
       children++;
 
@@ -266,7 +267,8 @@ static int event_loop(genlb_state_t *s) {
         case ECHILD:
           goto GENLB_CONT;
         default:
-          return 114;
+          VERBOSE(s, 0, "waitpid:%d:%s\n", npid, strerror(oerrno));
+          return -1;
         }
       }
 
@@ -280,18 +282,23 @@ static int event_loop(genlb_state_t *s) {
         case ESRCH:
           goto GENLB_CONT;
         default:
-          return 111;
+          VERBOSE(s, 0, "ptrace(SETOPTIONS): %s\n", strerror(errno));
+          return -1;
         }
       }
 
-      if (ptrace(PTRACE_CONT, npid, 0, 0) < 0)
-        return 111;
+      if (ptrace(PTRACE_CONT, npid, 0, 0) < 0) {
+        VERBOSE(s, 0, "ptrace(CONT): %s\n", strerror(errno));
+        return -1;
+      }
 
       break;
 
     case (SIGTRAP | (PTRACE_EVENT_CLONE << 8)):
-      if (ptrace(PTRACE_GETEVENTMSG, tracee, 0, &npid) < 0)
-        return 111;
+      if (ptrace(PTRACE_GETEVENTMSG, tracee, 0, &npid) < 0) {
+        VERBOSE(s, 0, "ptrace(GETEVENTMSG): %s\n", strerror(errno));
+        return -1;
+      }
 
       children++;
 
@@ -302,7 +309,8 @@ static int event_loop(genlb_state_t *s) {
         case ECHILD:
           goto GENLB_CONT;
         default:
-          return 114;
+          VERBOSE(s, 0, "waitpid:%d:%s\n", npid, strerror(oerrno));
+          return -1;
         }
       }
 
@@ -316,12 +324,15 @@ static int event_loop(genlb_state_t *s) {
         case ESRCH:
           goto GENLB_CONT;
         default:
-          return 111;
+          VERBOSE(s, 0, "ptrace(SETOPTIONS): %s\n", strerror(errno));
+          return -1;
         }
       }
 
-      if (ptrace(PTRACE_CONT, npid, 0, 0) < 0)
-        return 111;
+      if (ptrace(PTRACE_CONT, npid, 0, 0) < 0) {
+        VERBOSE(s, 0, "ptrace(CONT): %s\n", strerror(errno));
+        return -1;
+      }
 
       break;
 
@@ -333,8 +344,10 @@ static int event_loop(genlb_state_t *s) {
     }
 
   GENLB_CONT:
-    if (ptrace(PTRACE_CONT, tracee, 0, sig) < 0)
-      return 111;
+    if (ptrace(PTRACE_CONT, tracee, 0, sig) < 0) {
+      VERBOSE(s, 0, "ptrace(CONT): %s\n", strerror(errno));
+      return -1;
+    }
   }
 }
 
