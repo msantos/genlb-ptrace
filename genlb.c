@@ -242,6 +242,16 @@ static int event_loop(genlb_state_t *s) {
       continue;
     }
 
+    if (WIFSIGNALED(status)) {
+      children--;
+      VERBOSE(s, 2, "children=%d\n", children);
+
+      if (children <= 0)
+        return WTERMSIG(status);
+
+      continue;
+    }
+
     switch (status >> 8) {
     case (SIGTRAP | (PTRACE_EVENT_SECCOMP << 8)):
       if (genlb_connect(s, tracee) < 0) {
