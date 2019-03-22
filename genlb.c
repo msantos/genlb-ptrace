@@ -540,9 +540,23 @@ static int read_sockaddr(genlb_state_t *s, pid_t tracee, struct sockaddr *saddr,
 
   ssize_t rv;
 
+  errno = 0;
   addr =
       (struct sockaddr *)ptrace(PTRACE_PEEKUSER, tracee, sizeof(long) * RSI, 0);
+  switch (errno) {
+  case 0:
+    break;
+  case ESRCH:
+    return 0;
+  default:
+    return -1;
+  }
+
+  errno = 0;
   addrlen = (socklen_t)ptrace(PTRACE_PEEKUSER, tracee, sizeof(long) * RDX, 0);
+
+  if (errno != 0)
+      return -1;
 
   if (addrlen > *saddrlen) {
     VERBOSE(s, 0, "addrlen=%lu, saddrlen=%lu\n", (long unsigned int)addrlen,
