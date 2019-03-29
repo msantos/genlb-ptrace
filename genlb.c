@@ -504,12 +504,12 @@ static int genlb_socket(genlb_state_t *s, const struct sockaddr *addr,
     return -1;
   }
 
+  *paddrlen = *addrlen;
+
   if (connect(sockfd, addr, *addrlen) < 0) {
     VERBOSE(s, 1, "connect: %s\n", strerror(errno));
     return s->connect_failure == GENLB_CONNECT_FAILURE_EXIT ? -1 : 0;
   }
-
-  *paddrlen = *addrlen;
 
   if (getpeername(sockfd, paddr, paddrlen) < 0) {
     VERBOSE(s, 0, "getpeername: %s\n", strerror(errno));
