@@ -46,6 +46,8 @@
 
 #include <err.h>
 
+#include "genlb_sandbox.h"
+
 #if defined(__x86_64__)
 #include <sys/reg.h>
 #define SECCOMP_AUDIT_ARCH AUDIT_ARCH_X86_64
@@ -60,8 +62,11 @@
 #error "seccomp: unsupported platform"
 #endif
 
-#define GENLB_VERSION "0.2.0"
+#define GENLB_VERSION "0.3.0"
+
+#if defined(SANDBOX_null)
 #define GENLB_SANDBOX "null"
+#endif
 
 #define IOVEC_COUNT(_array) (sizeof(_array) / sizeof(_array[0]))
 
@@ -198,6 +203,9 @@ static int genlb_tracee(genlb_state_t *s, char *argv[]) {
 
 static int genlb_tracer(genlb_state_t *s, pid_t tracee) {
   int status;
+
+  if (genlb_sandbox() < 0)
+      return -1;
 
   if (waitpid(tracee, &status, 0) < 0) {
     VERBOSE(s, 0, "waitpid: %s\n", strerror(errno));
