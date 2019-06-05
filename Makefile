@@ -12,7 +12,7 @@ all:
 		-Wconversion -Wshadow \
 		-Wpointer-arith -Wcast-qual \
 		-Wstrict-prototypes -Wmissing-prototypes \
-		-o genlb genlb.c sandbox_null.c \
+		-o genlb genlb.c sandbox_null.c sandbox_seccomp.c \
 		$(LDFLAGS)
 
 clean:

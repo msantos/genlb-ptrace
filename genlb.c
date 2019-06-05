@@ -66,6 +66,8 @@
 
 #if defined(SANDBOX_null)
 #define GENLB_SANDBOX "null"
+#elif defined(SANDBOX_seccomp)
+#define GENLB_SANDBOX "seccomp"
 #endif
 
 #define IOVEC_COUNT(_array) (sizeof(_array) / sizeof(_array[0]))
