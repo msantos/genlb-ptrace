@@ -6,9 +6,15 @@ genlb [-c *strategy*|-v] *command* *arg* *...*
 
 # DESCRIPTION
 
-`genlb` uses `ptrace(2)` to intercept calls by the child
-process to `connect(2)` and redirect them using the
-[glb](https://github.com/msantos/genlb) `LD_PRELOAD` library.
+`genlb` monitors a subprocess, intercepting calls to `connect(2)` using
+`ptrace(2)`.
+
+If the destination of the `connect(2)` matches an IP address/port,
+`genlb` probes a list of IP addresses and rewrites the `connect(2)`
+in the subprocess to use the first working IP.
+
+`genlb` uses the [libglb](https://github.com/msantos/genlb) `LD_PRELOAD`
+library for the `connect(2)` load balancing.
 
 # EXAMPLES
 
