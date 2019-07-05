@@ -60,3 +60,5 @@ GLB\_OPTIONS
 * [Modifying System Call Arguments With ptrace](http://www.alfonsobeato.net/c/modifying-system-call-arguments-with-ptrace/)
 
 * [Filter and Modify System Calls with seccomp and ptrace](https://www.alfonsobeato.net/c/filter-and-modify-system-calls-with-seccomp-and-ptrace/)
+
+* [Intercepting and Emulating Linux System Calls with Ptrace](https://nullprogram.com/blog/2018/06/23/)
