@@ -16,18 +16,26 @@
 
 #include <poll.h>
 
+#include <getopt.h>
+
 typedef struct {
   int count;
   int lfd;
+  int verbose;
   size_t maxfd;
 } cl_state_t;
 
 static int cl_listen(cl_state_t *cp, const char *addr, const char *port);
 static int cl_accept(cl_state_t *cp);
 
+static const struct option long_options[] = {
+    {"verbose", no_argument, NULL, 'v'}, {NULL, 0, NULL, 0}};
+
 int main(int argc, char *argv[]) {
   cl_state_t *cp;
   struct rlimit maxfd;
+
+  int ch = 0;
 
   cp = calloc(1, sizeof(cl_state_t));
   if (cp == NULL)
@@ -38,22 +46,35 @@ int main(int argc, char *argv[]) {
 
   cp->maxfd = maxfd.rlim_cur;
 
+  while ((ch = getopt_long(argc, argv, "v", long_options, NULL)) != -1) {
+    switch (ch) {
+    case 'v':
+      cp->verbose++;
+      break;
+    default:
+      errx(EXIT_FAILURE, "usage: <count> <localaddr> <localport>");
+    }
+  }
+
+  argc -= optind;
+  argv += optind;
+
   if (setvbuf(stdout, NULL, _IOLBF, 0) < 0)
     err(EXIT_FAILURE, "setvbuf");
 
-  if (argc != 4) {
+  if (argc != 3) {
     errx(EXIT_FAILURE, "usage: <count> <localaddr> <localport>");
   }
 
-  cp->count = atoi(argv[1]);
+  cp->count = atoi(argv[0]);
   if (cp->count <= 0)
     errx(EXIT_FAILURE, "usage: <count> <localaddr> <localport>");
 
-  if (cl_listen(cp, argv[2], argv[3]) < 0)
-    err(112, "listen:%s:%s", argv[2], argv[3]);
+  if (cl_listen(cp, argv[1], argv[2]) < 0)
+    err(112, "listen:%s:%s", argv[1], argv[2]);
 
   if (cl_accept(cp) < 0)
-    err(113, "accept:%s -> %s:%s", argv[1], argv[2], argv[3]);
+    err(113, "accept:%s -> %s:%s", argv[0], argv[1], argv[2]);
 
   exit(0);
 }
@@ -95,26 +116,28 @@ static int cl_accept(cl_state_t *cp) {
 
       cp->count--;
 
-      switch (((struct sockaddr *)&paddr)->sa_family) {
-      case AF_INET6:
-        (void)fprintf(
-            stderr, "accept:%d:%s:%u\n", cp->count,
-            inet_ntop(AF_INET6,
-                      &(((const struct sockaddr_in6 *)&paddr)->sin6_addr),
-                      addrstr, sizeof(addrstr)),
-            ntohs(((const struct sockaddr_in6 *)&paddr)->sin6_port));
-        break;
-      case AF_INET:
-        (void)fprintf(
-            stderr, "accept:%d:%s:%u\n", cp->count,
-            inet_ntop(AF_INET,
-                      &(((const struct sockaddr_in *)&paddr)->sin_addr),
-                      addrstr, sizeof(addrstr)),
-            ntohs(((const struct sockaddr_in *)&paddr)->sin_port));
-        break;
-      default:
-        errno = EINVAL;
-        return -1;
+      if (cp->verbose > 0) {
+        switch (((struct sockaddr *)&paddr)->sa_family) {
+        case AF_INET6:
+          (void)fprintf(
+              stderr, "accept:%d:%s:%u\n", cp->count,
+              inet_ntop(AF_INET6,
+                        &(((const struct sockaddr_in6 *)&paddr)->sin6_addr),
+                        addrstr, sizeof(addrstr)),
+              ntohs(((const struct sockaddr_in6 *)&paddr)->sin6_port));
+          break;
+        case AF_INET:
+          (void)fprintf(
+              stderr, "accept:%d:%s:%u\n", cp->count,
+              inet_ntop(AF_INET,
+                        &(((const struct sockaddr_in *)&paddr)->sin_addr),
+                        addrstr, sizeof(addrstr)),
+              ntohs(((const struct sockaddr_in *)&paddr)->sin_port));
+          break;
+        default:
+          errno = EINVAL;
+          return -1;
+        }
       }
 
       if (close(fd) < 0)
