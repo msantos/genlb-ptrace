@@ -1,3 +1,5 @@
+.PHONY: all clean test
+
 CFLAGS ?= -D_FORTIFY_SOURCE=2 -O2 -fstack-protector-strong \
 					-Wformat -Werror=format-security \
 					-pie -fPIE \
@@ -17,3 +19,6 @@ all:
 
 clean:
 	-@rm genlb
+
+test:
+	-@PATH=.:$$PATH bats test
