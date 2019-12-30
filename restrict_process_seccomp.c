@@ -12,9 +12,9 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
-#include "genlb_sandbox.h"
+#include "restrict_process.h"
 
-#ifdef SANDBOX_seccomp
+#ifdef RESTRICT_PROCESS_seccomp
 #include <errno.h>
 #include <linux/audit.h>
 #include <linux/filter.h>
@@ -29,10 +29,10 @@
 #define SECCOMP_FILTER_FAIL SECCOMP_RET_KILL
 
 /* Use a signal handler to emit violations when debugging */
-#ifdef SANDBOX_SECCOMP_FILTER_DEBUG
+#ifdef RESTRICT_PROCESS_SECCOMP_FILTER_DEBUG
 #undef SECCOMP_FILTER_FAIL
 #define SECCOMP_FILTER_FAIL SECCOMP_RET_TRAP
-#endif /* SANDBOX_SECCOMP_FILTER_DEBUG */
+#endif /* RESTRICT_PROCESS_SECCOMP_FILTER_DEBUG */
 
 /* Simple helpers to avoid manual errors (but larger BPF programs). */
 #define SC_DENY(_nr, _errno)                                                   \
@@ -47,10 +47,9 @@
       BPF_STMT(BPF_LD + BPF_W + BPF_ABS,                                       \
                offsetof(struct seccomp_data, args[(_arg_nr)])),                \
       BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, (_arg_val), 0, 1),                   \
-      BPF_STMT(BPF_RET + BPF_K,                                                \
-               SECCOMP_RET_ALLOW), /* reload syscall number; all               \
-                                      rules expect it in                       \
-                                      accumulator */                           \
+      BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_ALLOW), /* reload syscall number;  \
+                                                       all rules expect it in                                                            \
+                                                       accumulator */          \
       BPF_STMT(BPF_LD + BPF_W + BPF_ABS, offsetof(struct seccomp_data, nr))
 
 /*
@@ -74,7 +73,7 @@
 #define SECCOMP_AUDIT_ARCH 0
 #endif
 
-int genlb_sandbox(void) {
+int restrict_process(void) {
   struct sock_filter filter[] = {
       /* Ensure the syscall arch convention is as expected. */
       BPF_STMT(BPF_LD + BPF_W + BPF_ABS, offsetof(struct seccomp_data, arch)),
@@ -83,7 +82,7 @@ int genlb_sandbox(void) {
       /* Load the syscall number for checking. */
       BPF_STMT(BPF_LD + BPF_W + BPF_ABS, offsetof(struct seccomp_data, nr)),
 
-/* Syscalls to allow */
+  /* Syscalls to allow */
 
 #ifdef __NR_brk
       SC_ALLOW(brk),

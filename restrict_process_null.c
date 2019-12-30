@@ -1,4 +1,4 @@
-/* Copyright 2019 Michael Santos <michael.santos@gmail.com>
+/* Copyright (c) 2019, Michael Santos <michael.santos@gmail.com>
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -12,4 +12,8 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
-int genlb_sandbox(void);
+#include "restrict_process.h"
+
+#ifdef RESTRICT_PROCESS_null
+int restrict_process(void) { return 0; }
+#endif

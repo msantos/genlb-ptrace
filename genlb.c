@@ -46,7 +46,7 @@
 
 #include <err.h>
 
-#include "genlb_sandbox.h"
+#include "restrict_process.h"
 
 #if defined(__x86_64__)
 #include <sys/reg.h>
@@ -64,10 +64,10 @@
 
 #define GENLB_VERSION "0.3.0"
 
-#if defined(SANDBOX_null)
-#define GENLB_SANDBOX "null"
-#elif defined(SANDBOX_seccomp)
-#define GENLB_SANDBOX "seccomp"
+#if defined(RESTRICT_PROCESS_null)
+#define RESTRICT_PROCESS "null"
+#elif defined(RESTRICT_PROCESS_seccomp)
+#define RESTRICT_PROCESS "seccomp"
 #endif
 
 #define IOVEC_COUNT(_array) (sizeof(_array) / sizeof(_array[0]))
@@ -206,7 +206,7 @@ static int genlb_tracee(genlb_state_t *s, char *argv[]) {
 static int genlb_tracer(genlb_state_t *s, pid_t tracee) {
   int status;
 
-  if (genlb_sandbox() < 0)
+  if (restrict_process() < 0)
     return -1;
 
   if (waitpid(tracee, &status, 0) < 0) {
@@ -636,8 +636,8 @@ static int write_sockaddr(genlb_state_t *s, pid_t tracee,
 static void usage() {
   errx(EXIT_FAILURE,
        "[OPTION] <COMMAND> <ARG>...\n"
-       "version: %s (using %s sandbox)\n\n"
+       "version: %s (using %s mode process restrictions)\n\n"
        "-c, --connect-failure  strategy: exit, continue (default: continue)\n"
        "-v, --verbose          verbose mode\n",
-       GENLB_VERSION, GENLB_SANDBOX);
+       GENLB_VERSION, RESTRICT_PROCESS);
 }
