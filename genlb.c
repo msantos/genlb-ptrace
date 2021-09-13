@@ -1,4 +1,4 @@
-/* Copyright 2019 Michael Santos <michael.santos@gmail.com>
+/* Copyright 2019-2021 Michael Santos <michael.santos@gmail.com>
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -18,6 +18,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdnoreturn.h>
 #include <string.h>
 
 #include <linux/audit.h>
@@ -98,7 +99,7 @@ static int read_sockaddr(genlb_state_t *s, pid_t tracee, struct sockaddr *saddr,
 static int write_sockaddr(genlb_state_t *s, pid_t tracee,
                           struct sockaddr *saddr, socklen_t salen);
 
-static void usage(void);
+static noreturn void usage(void);
 
 enum { GENLB_CONNECT_FAILURE_EXIT = 0, GENLB_CONNECT_FAILURE_CONTINUE = 1 };
 
@@ -153,7 +154,7 @@ int main(int argc, char *argv[]) {
   case -1:
     break;
   case 0:
-    if (genlb_tracee(s, argv) < 0)
+    if (genlb_tracee(s, argv) == -1)
       err(EXIT_FAILURE, "genlb_tracee");
     exit(0);
   default:
@@ -178,24 +179,27 @@ static int genlb_tracee(genlb_state_t *s, char *argv[]) {
   struct sock_fprog prog = {.filter = filter,
                             .len = (unsigned short)IOVEC_COUNT(filter)};
 
-  (void)unsetenv("LD_PRELOAD");
+  if (unsetenv("LD_PRELOAD") == -1) {
+    VERBOSE(s, 0, "unsetenv(LD_PRELOAD): %s\n", strerror(errno));
+    return -1;
+  }
 
-  if (ptrace(PTRACE_TRACEME, 0, 0, 0) < 0) {
+  if (ptrace(PTRACE_TRACEME, 0, 0, 0) == -1) {
     VERBOSE(s, 0, "ptrace(PTRACEME): %s\n", strerror(errno));
     return -1;
   }
 
-  if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) < 0) {
+  if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) == -1) {
     VERBOSE(s, 0, "prctl(PR_SET_NO_NEW_PRIVS): %s\n", strerror(errno));
     return -1;
   }
 
-  if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog) < 0) {
+  if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog) == -1) {
     VERBOSE(s, 0, "prctl(PR_SET_SECCOMP): %s\n", strerror(errno));
     return -1;
   }
 
-  if (raise(SIGSTOP) < 0) {
+  if (raise(SIGSTOP) != 0) {
     VERBOSE(s, 0, "raise(SIGSTOP): %s\n", strerror(errno));
     return -1;
   }
@@ -209,7 +213,7 @@ static int genlb_tracer(genlb_state_t *s, pid_t tracee) {
   if (restrict_process() < 0)
     return -1;
 
-  if (waitpid(tracee, &status, 0) < 0) {
+  if (waitpid(tracee, &status, 0) == -1) {
     VERBOSE(s, 0, "waitpid: %s\n", strerror(errno));
     return -1;
   }
@@ -217,12 +221,12 @@ static int genlb_tracer(genlb_state_t *s, pid_t tracee) {
   if (ptrace(PTRACE_SETOPTIONS, tracee, 0,
              PTRACE_O_TRACESECCOMP | PTRACE_O_EXITKILL | PTRACE_O_TRACEVFORK |
                  PTRACE_O_TRACEFORK | PTRACE_O_TRACECLONE |
-                 PTRACE_O_TRACEEXEC) < 0) {
+                 PTRACE_O_TRACEEXEC) == -1) {
     VERBOSE(s, 0, "ptrace(SETOPTIONS): %s\n", strerror(errno));
     return -1;
   }
 
-  if (ptrace(PTRACE_CONT, tracee, 0, 0) < 0) {
+  if (ptrace(PTRACE_CONT, tracee, 0, 0) == -1) {
     VERBOSE(s, 0, "ptrace(CONT): %s\n", strerror(errno));
     return -1;
   }
@@ -264,7 +268,7 @@ static int event_loop(genlb_state_t *s) {
 
     switch (status >> 8) {
     case (SIGTRAP | (PTRACE_EVENT_SECCOMP << 8)):
-      if (genlb_connect(s, tracee) < 0) {
+      if (genlb_connect(s, tracee) == -1) {
         VERBOSE(s, 0, "genlb_connect: %s\n", strerror(errno));
         return -1;
       }
@@ -280,7 +284,7 @@ static int event_loop(genlb_state_t *s) {
 
       children++;
 
-      if (waitpid(npid, &status, 0) < 0) {
+      if (waitpid(npid, &status, 0) == -1) {
         int oerrno = errno;
         VERBOSE(s, 1, "waitpid:%d:%s\n", npid, strerror(oerrno));
         switch (oerrno) {
@@ -295,19 +299,19 @@ static int event_loop(genlb_state_t *s) {
       if (ptrace(PTRACE_SETOPTIONS, npid, 0,
                  PTRACE_ATTACH | PTRACE_O_TRACESECCOMP | PTRACE_O_EXITKILL |
                      PTRACE_O_TRACEVFORK | PTRACE_O_TRACEFORK |
-                     PTRACE_O_TRACECLONE | PTRACE_O_TRACEEXEC) < 0) {
+                     PTRACE_O_TRACECLONE | PTRACE_O_TRACEEXEC) == -1) {
         int oerrno = errno;
         VERBOSE(s, 1, "waitpid:%d:%s\n", npid, strerror(oerrno));
         switch (oerrno) {
         case ESRCH:
           goto GENLB_CONT;
         default:
-          VERBOSE(s, 0, "ptrace(SETOPTIONS): %s\n", strerror(errno));
+          VERBOSE(s, 0, "ptrace(SETOPTIONS): %s\n", strerror(oerrno));
           return -1;
         }
       }
 
-      if (ptrace(PTRACE_CONT, npid, 0, 0) < 0) {
+      if (ptrace(PTRACE_CONT, npid, 0, 0) == -1) {
         VERBOSE(s, 0, "ptrace(CONT): %s\n", strerror(errno));
         return -1;
       }
@@ -315,14 +319,14 @@ static int event_loop(genlb_state_t *s) {
       break;
 
     case (SIGTRAP | (PTRACE_EVENT_CLONE << 8)):
-      if (ptrace(PTRACE_GETEVENTMSG, tracee, 0, &npid) < 0) {
+      if (ptrace(PTRACE_GETEVENTMSG, tracee, 0, &npid) == -1) {
         VERBOSE(s, 0, "ptrace(GETEVENTMSG): %s\n", strerror(errno));
         return -1;
       }
 
       children++;
 
-      if (waitpid(npid, &status, __WALL | WNOHANG) < 0) {
+      if (waitpid(npid, &status, __WALL | WNOHANG) == -1) {
         int oerrno = errno;
         VERBOSE(s, 1, "waitpid:%d:%s\n", npid, strerror(oerrno));
         switch (oerrno) {
@@ -337,19 +341,19 @@ static int event_loop(genlb_state_t *s) {
       if (ptrace(PTRACE_SETOPTIONS, npid, 0,
                  PTRACE_ATTACH | PTRACE_O_TRACESECCOMP | PTRACE_O_EXITKILL |
                      PTRACE_O_TRACEVFORK | PTRACE_O_TRACEFORK |
-                     PTRACE_O_TRACECLONE | PTRACE_O_TRACEEXEC) < 0) {
+                     PTRACE_O_TRACECLONE | PTRACE_O_TRACEEXEC) == -1) {
         int oerrno = errno;
         VERBOSE(s, 1, "waitpid:%d:%s\n", npid, strerror(oerrno));
         switch (oerrno) {
         case ESRCH:
           goto GENLB_CONT;
         default:
-          VERBOSE(s, 0, "ptrace(SETOPTIONS): %s\n", strerror(errno));
+          VERBOSE(s, 0, "ptrace(SETOPTIONS): %s\n", strerror(oerrno));
           return -1;
         }
       }
 
-      if (ptrace(PTRACE_CONT, npid, 0, 0) < 0) {
+      if (ptrace(PTRACE_CONT, npid, 0, 0) == -1) {
         VERBOSE(s, 0, "ptrace(CONT): %s\n", strerror(errno));
         return -1;
       }
@@ -364,7 +368,7 @@ static int event_loop(genlb_state_t *s) {
     }
 
   GENLB_CONT:
-    if (ptrace(PTRACE_CONT, tracee, 0, sig) < 0) {
+    if (ptrace(PTRACE_CONT, tracee, 0, sig) == -1) {
       VERBOSE(s, 0, "ptrace(CONT): %s\n", strerror(errno));
       return -1;
     }
@@ -514,19 +518,19 @@ static int genlb_socket(genlb_state_t *s, const struct sockaddr *addr,
 
   sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
-  if (sockfd < 0) {
+  if (sockfd == -1) {
     VERBOSE(s, 0, "socket: %s\n", strerror(errno));
     return -1;
   }
 
   *paddrlen = *addrlen;
 
-  if (connect(sockfd, addr, *addrlen) < 0) {
+  if (connect(sockfd, addr, *addrlen) == -1) {
     VERBOSE(s, 1, "connect: %s\n", strerror(errno));
     return s->connect_failure == GENLB_CONNECT_FAILURE_EXIT ? -1 : 0;
   }
 
-  if (getpeername(sockfd, paddr, paddrlen) < 0) {
+  if (getpeername(sockfd, paddr, paddrlen) == -1) {
     VERBOSE(s, 0, "getpeername: %s\n", strerror(errno));
     return -1;
   }
@@ -537,7 +541,7 @@ static int genlb_socket(genlb_state_t *s, const struct sockaddr *addr,
     return -1;
   }
 
-  if (close(sockfd) < 0) {
+  if (close(sockfd) == -1) {
     VERBOSE(s, 0, "close: %s\n", strerror(errno));
     return -1;
   }
@@ -549,6 +553,7 @@ static int read_sockaddr(genlb_state_t *s, pid_t tracee, struct sockaddr *saddr,
                          socklen_t *saddrlen) {
   struct sockaddr *addr;
   socklen_t addrlen;
+  long word;
 
   struct iovec local_iov[1];
   struct iovec remote_iov[1];
@@ -556,22 +561,26 @@ static int read_sockaddr(genlb_state_t *s, pid_t tracee, struct sockaddr *saddr,
   ssize_t rv;
 
   errno = 0;
-  addr =
-      (struct sockaddr *)ptrace(PTRACE_PEEKUSER, tracee, sizeof(long) * RSI, 0);
-  switch (errno) {
-  case 0:
-    break;
-  case ESRCH:
-    return 0;
-  default:
-    return -1;
+  word = ptrace(PTRACE_PEEKUSER, tracee, sizeof(long) * RSI, 0);
+  if (word == -1) {
+    switch (errno) {
+    case 0:
+      break;
+    case ESRCH:
+      return 0;
+    default:
+      return -1;
+    }
   }
 
+  addr = (struct sockaddr *)word;
   errno = 0;
-  addrlen = (socklen_t)ptrace(PTRACE_PEEKUSER, tracee, sizeof(long) * RDX, 0);
+  word = ptrace(PTRACE_PEEKUSER, tracee, sizeof(long) * RDX, 0);
 
-  if (errno != 0)
+  if (word == -1 && errno != 0)
     return -1;
+
+  addrlen = (socklen_t)word;
 
   if (addrlen > *saddrlen) {
     VERBOSE(s, 0, "addrlen=%lu, saddrlen=%lu\n", (long unsigned int)addrlen,
@@ -589,7 +598,7 @@ static int read_sockaddr(genlb_state_t *s, pid_t tracee, struct sockaddr *saddr,
   rv = process_vm_readv(tracee, local_iov, IOVEC_COUNT(local_iov), remote_iov,
                         IOVEC_COUNT(remote_iov), 0);
 
-  if (rv < 0 || rv != (ssize_t)addrlen)
+  if (rv == -1 || (unsigned)rv != addrlen)
     return -1;
 
   *saddrlen = addrlen;
@@ -600,6 +609,7 @@ static int read_sockaddr(genlb_state_t *s, pid_t tracee, struct sockaddr *saddr,
 static int write_sockaddr(genlb_state_t *s, pid_t tracee,
                           struct sockaddr *saddr, socklen_t salen) {
   char *addr;
+  long word;
   struct iovec local_iov[1];
   struct iovec remote_iov[1];
 
@@ -608,15 +618,19 @@ static int write_sockaddr(genlb_state_t *s, pid_t tracee,
   (void)s;
 
   errno = 0;
-  addr = (char *)ptrace(PTRACE_PEEKUSER, tracee, sizeof(long) * RSI, 0);
-  switch (errno) {
-  case 0:
-    break;
-  case ESRCH:
-    return 0;
-  default:
-    return -1;
+  word = ptrace(PTRACE_PEEKUSER, tracee, sizeof(long) * RSI, 0);
+  if (word == -1) {
+    switch (errno) {
+    case 0:
+      break;
+    case ESRCH:
+      return 0;
+    default:
+      return -1;
+    }
   }
+
+  addr = (char *)word;
 
   local_iov[0].iov_base = saddr;
   local_iov[0].iov_len = salen;
@@ -627,13 +641,13 @@ static int write_sockaddr(genlb_state_t *s, pid_t tracee,
   rv = process_vm_writev(tracee, local_iov, IOVEC_COUNT(local_iov), remote_iov,
                          IOVEC_COUNT(remote_iov), 0);
 
-  if (rv < 0 || rv != (ssize_t)salen)
+  if (rv == -1 || (unsigned)rv != salen)
     return -1;
 
   return 0;
 }
 
-static void usage() {
+static noreturn void usage() {
   errx(EXIT_FAILURE,
        "[OPTION] <COMMAND> <ARG>...\n"
        "version: %s (using %s mode process restrictions)\n\n"
